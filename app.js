@@ -9,6 +9,8 @@ const executable = app.commandLine.getSwitchValue("executable");
 const appname = app.commandLine.getSwitchValue("appname");
 const { exec } = require('child_process');
 const os = require('os');
+// Disable asar archive
+process.noAsar = true;
 
 // Kill app if it's already running
 if (appname) {

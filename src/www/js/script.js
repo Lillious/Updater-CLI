@@ -50,13 +50,16 @@ if (url) {
                             } else {
                                 setTimeout(() => {
                                     ipcRenderer.send('close');
-                                }, 5000);
+                                }, 3000);
                             }
                         });
+                        setTimeout(() => {
+                            ipcRenderer.send('close');
+                        }, 3000);
                     } else {
                         setTimeout(() => {
                             ipcRenderer.send('close');
-                        }, 5000);
+                        }, 3000);
                     }
                 }).catch((err) => {
                     console.log(err);
@@ -156,17 +159,44 @@ function extractFiles (file, filePath) {
         .on('entry', function (entry) {
             const fileName = entry.path;
             const type = entry.type; // 'Directory' or 'File'
-            // if type is Directory, create it
+            // Ignore the update directory because we don't want to overwrite the current app
             if (type === 'Directory') {
-                fs.mkdir(path.join(filePath, fileName), (err) => {
-                    if (err) throw err;
-                });
+                if (!fileName.startsWith('update')) {
+                    if (!fileName.startsWith('locales')) {
+                        // Check if directory is called update and ignore it because we don't want to overwrite the current app
+                        // Check if directory exists and overwrite if it does
+                        if (fs.existsSync(path.join(filePath, fileName))) {
+                            fs.rmdirSync(path.join(filePath, fileName), { recursive: true });
+                        }
+                        fs.mkdir(path.join(filePath, fileName), (err) => {
+                            if (err) throw err;
+                        });
+                    } else {
+                        entry.autodrain();
+                    }
+                } else {
+                    entry.autodrain();
+                }
             } else {
-                document.getElementById('toast').innerHTML = `Extracting ${fileName}...`
-                entry.pipe(fs.createWriteStream(path.join(filePath, fileName)));
+                // Check if the folder is called update and ignore it because we don't want to overwrite the current app
+                if (!fileName.includes('update/') && !fileName.endsWith('.bin') && !fileName.includes('resources.pak')) {
+                    document.getElementById('toast').innerHTML = `Extracting ${fileName}`
+                    // Check if file exists and overwrite if it does
+                    if (fs.existsSync(path.join(filePath, fileName))) {
+                        fs.rmSync(path.join(filePath, fileName));
+                    }
+                    entry.pipe(fs.createWriteStream(path.join(filePath, fileName)));
+                } else {
+                    entry.autodrain();
+                }
             }
         }).on('close', () => {
             resolve();
-        }); 
+        }).on('error', (err) => {
+            console.log(err);
+            reject(err);
+        }).on('finish', () => {
+            resolve();
+        });
     });
 }
