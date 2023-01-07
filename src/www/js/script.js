@@ -20,6 +20,7 @@ const url = config.url;
 const installPath = config.installPath;
 const executablePath = config.executablePath;
 const executable = config.executable;
+const tempPath = config.tempPath;
 
 // Check if url is a valid link
 if (url) {
@@ -28,11 +29,11 @@ if (url) {
             // Download file if url is valid
             getInstallerFile(url).then(() => {
                 // Extract package.zip file to installPath location
-                extractFiles(path.join(__dirname, '../', 'package.zip'), path.join(installPath)).then(() => {
+                extractFiles(path.join(tempPath, 'package.zip'), path.join(installPath)).then(() => {
                     showToast('success', 'Successfully installed package');
                     document.getElementById('toast').innerHTML = "";
                     // delete package.zip file
-                    fs.unlinkSync(path.join(__dirname, '../', 'package.zip'), (err) => {
+                    fs.unlinkSync(path.join(tempPath, 'package.zip'), (err) => {
                         if (err) {
                             console.log(err);
                             showToast('error', 'Failed to delete package.zip');
@@ -40,22 +41,23 @@ if (url) {
                     });
                     // Run executable if the option is provided
                     if (executable != '') {
-                        // Check if executable exists
                         showToast('success', `Opening ${executable}`);
                         // Run executable externally and then close the current window
-                        console.log(`cd "${executablePath}" && start ${executable}`);
                         require('child_process').exec(`cd "${executablePath}" && start ${executable}`, (err) => {
                             if (err) {
                                 console.log(err);
                                 showToast('error', `Failed to open ${executable}`);
                             } else {
-                                ipcRenderer.send('close');
+                                setTimeout(() => {
+                                    ipcRenderer.send('close');
+                                }, 5000);
                             }
                         });
                     } else {
-                        ipcRenderer.send('close');
+                        setTimeout(() => {
+                            ipcRenderer.send('close');
+                        }, 5000);
                     }
-                    
                 }).catch((err) => {
                     console.log(err);
                     showToast('error', 'Failed to extract installer file');
@@ -77,7 +79,6 @@ function showToast (mode, message) {
     const NotificationClose = document.createElement('div');
     NotificationContainer.classList.add('notification-bar');
     NotificationContent.classList.add('notification-content');
-    // Create id
     NotificationContent.innerHTML = message;
     NotificationContainer.appendChild(NotificationContent);
     // Shift the element up by 50px for each notification that isn't on the screen
@@ -109,7 +110,8 @@ function getInstallerFile (installerfileURL) {
     // Variable to save downloading progress
     var received_bytes = 0;
     var total_bytes = 0;
-    var outStream = fs.createWriteStream('package.zip');
+    // Download to temp folder and save as package.zip
+    var outStream = fs.createWriteStream(path.join(tempPath, 'package.zip'));
     // Create new promise with the Promise() constructor;
     return new Promise((resolve, reject) => {
         request
