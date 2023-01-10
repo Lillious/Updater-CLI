@@ -3,7 +3,7 @@ const close = document.getElementById('close');
 const minimize = document.getElementById('minimize');
 const path = require('path');
 const request = require('request');
-const unzipper = require('unzipper');
+const extract = require('extract-zip');
 const fs = require('fs');
 
 close.addEventListener('click', () => {
@@ -22,59 +22,65 @@ const executablePath = config.executablePath;
 const executable = config.executable;
 const tempPath = config.tempPath;
 
-// Check if url is a valid link
-if (url) {
-    // Check if url ends in .zip or .exe
-    if (url.endsWith('.zip') || url.endsWith('.exe')) {
-            // Download file if url is valid
-            getInstallerFile(url).then(() => {
-                // Extract package.zip file to installPath location
-                extractFiles(path.join(tempPath, 'package.zip'), path.join(installPath)).then(() => {
-                    showToast('success', 'Successfully installed package');
-                    document.getElementById('toast').innerHTML = "";
-                    // delete package.zip file
-                    fs.unlinkSync(path.join(tempPath, 'package.zip'), (err) => {
-                        if (err) {
-                            console.log(err);
-                            showToast('error', 'Failed to delete package.zip');
-                        }
-                    });
-                    // Run executable if the option is provided
-                    if (executable != '') {
-                        showToast('success', `Opening ${executable}`);
-                        // Run executable externally and then close the current window
-                        require('child_process').exec(`cd "${executablePath}" && start ${executable}`, (err) => {
+(async () => {
+    // Check if url is a valid link
+    if (url) {
+        // Check if url ends in .zip or .exe
+        if (url.endsWith('.zip') || url.endsWith('.exe')) {
+                // Download file if url is valid
+                getInstallerFile(url).then(() => {
+                    try {
+                        extract(path.join(tempPath, 'package.zip'), { dir: path.join(installPath) }, (err) => {
                             if (err) {
                                 console.log(err);
-                                showToast('error', `Failed to open ${executable}`);
+                                showToast('error', 'Failed to extract installer file');
+                            }
+                            showToast('success', 'Successfully installed package');
+                            document.getElementById('toast').innerHTML = "";
+                            // delete package.zip file
+                            fs.unlinkSync(path.join(tempPath, 'package.zip'), (err) => {
+                                if (err) {
+                                    console.log(err);
+                                    showToast('error', 'Failed to delete package.zip');
+                                }
+                            });
+                            // Run executable externally and then close the current window
+                            if (executable != '') {
+                                showToast('success', `Opening ${executable}`);
+                                require('child_process').exec(`cd "${executablePath}" && start ${executable}`, (err) => {
+                                    if (err) {
+                                        console.log(err);
+                                        showToast('error', `Failed to open ${executable}`);
+                                    } else {
+                                        setTimeout(() => {
+                                            ipcRenderer.send('close');
+                                        }, 3000);
+                                    }
+                                });
+                                setTimeout(() => {
+                                    ipcRenderer.send('close');
+                                }, 3000);
                             } else {
                                 setTimeout(() => {
                                     ipcRenderer.send('close');
                                 }, 3000);
                             }
                         });
-                        setTimeout(() => {
-                            ipcRenderer.send('close');
-                        }, 3000);
-                    } else {
-                        setTimeout(() => {
-                            ipcRenderer.send('close');
-                        }, 3000);
+                    } catch (err) {
+                        console.log(err);
+                        showToast('error', 'Failed to extract installer file');
                     }
                 }).catch((err) => {
                     console.log(err);
-                    showToast('error', 'Failed to extract installer file');
+                    showToast('error', 'Failed to download installer file');
                 });
-            }).catch((err) => {
-                console.log(err);
-                showToast('error', 'Failed to download installer file');
-            });
+        } else {
+            showToast('error', 'URL is not a valid installer file');
+        }
     } else {
-        showToast('error', 'URL is not a valid installer file');
+        showToast('error', 'URL was not provided');
     }
-} else {
-    showToast('error', 'URL was not provided');
-}
+})();
 
 function showToast (mode, message) {
     const NotificationContainer = document.createElement('div');
